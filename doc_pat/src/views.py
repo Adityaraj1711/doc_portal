@@ -14,6 +14,7 @@ class GeneratePdf(View):
         create_time = obj.create_time
         follow_up_days = obj.follow_up_days
         follow_up = datetime.date(create_time) + timedelta(days=follow_up_days)
+        follow_up = follow_up.strftime("%d/%m/%Y")
         address = obj.address
         if address is None or address == "None":
             address = ""
@@ -39,7 +40,8 @@ class GeneratePdf(View):
             "procedure": obj.procedure,
             "comorbidities": obj.comorbidities,
             "days": str(follow_up_days),
-            "follow_up": str(follow_up)
+            "follow_up": str(follow_up),
+            "inv_date": str(datetime.date(create_time).strftime("%d/%m/%Y"))
         }
         pdf = render_to_pdf('pdf_template.html', all)
         return HttpResponse(pdf, content_type='application/pdf')

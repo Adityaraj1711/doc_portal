@@ -7,10 +7,12 @@ from src.models import Patient, Procedure, Comorbiditie
 from import_export.fields import Field
 from import_export.admin import ImportExportModelAdmin
 from import_export.instance_loaders import CachedInstanceLoader
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.shortcuts import redirect
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
+from django.utils.html import format_html
+from django.urls import reverse
 
 
 class CustomUserAdmin(UserAdmin):
@@ -47,12 +49,20 @@ class PatientResource(resources.ModelResource):
 class PatientAdmin(ImportExportModelAdmin):
     resource_class = PatientResource
     change_form_template = 'src/templates/admin/change_form.html'
+    # change_list_template = 'src/templates/admin/change_list.html'
     list_per_page = 50
     list_max_show_all = False
     search_fields = ('name', 'address', 'city', 'payment_mode', 'diagnosis')
-    list_display = ('name', 'city', 'payment_mode', 'diagnosis', 'create_time', 'follow_up_days', 'referred_by')
-    ordering = ('-create_time', )
+    list_display = ('name', 'seen_by_doctor', 'city', 'payment_mode', 'diagnosis', 'create_time',
+                    'follow_up_days', 'referred_by', 'print_field')
+    ordering = ('-seen_by_doctor', '-create_time')
     actions = (ExportCsvMixin.export_as_csv, ExportAllCsvMixin.export_all_as_csv,)
+
+    def print_field(self, obj):
+        return format_html(
+            "<button><a href='/pdf/{}' target=_blank>Print</a></button>",
+            obj.id
+        )
 
     def get_search_fields(self, request):
         if request.user.is_superuser:
@@ -64,23 +74,22 @@ class PatientAdmin(ImportExportModelAdmin):
         if request.user.is_superuser:
             self.read_only_fields = ()
         else:
-            self.read_only_fields = ('prescription', 'follow_up_days', 'procedure',
-                                'comorbidities', 'diagnosis', 'comorbidities')
+            self.read_only_fields = ('follow_up_days', 'or_days', 'procedure', 'seen_by_doctor', 'prescription',
+                                'diagnosis', 'comorbidities')
         return self.read_only_fields
 
-    def response_add(self, request, obj, post_url_continue=None):
-        return redirect('/pdf/' + str(obj.id))
+    def save_model(self, request, obj, form, change):
+        super(PatientAdmin, self).save_model(request, obj, form, change)
+        #messages.warning(request, "Payment is pending, please complete the leftover payment to avoid future disturbance!")
+        if request.user.is_superuser:
+            obj.seen_by_doctor = True
+            obj.save()
 
-    def response_change(self, request, obj):
-        return redirect('/pdf/' + str(obj.id))
-
-    # def get_exclude(self, request, obj=None):
-    #     if not request.user.is_superuser:
-    #         self.exclude = ('address', 'contact', )
-    #     else:
-    #         self.exclude = ('prescription', 'follow_up_days', 'procedure',
-    #                             'comorbidities', 'diagnosis', 'comorbidities')
-    #     return self.exclude
+    # def response_add(self, request, obj):
+    #     return redirect('/pdf/' + str(obj.id))
+    #
+    # def response_change(self, request, obj):
+    #     return redirect('/pdf/' + str(obj.id))
 
 
 class ProcedureAdmin(admin.ModelAdmin):
